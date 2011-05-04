@@ -1,3 +1,5 @@
 .komodotools
 *.komodoproject
 *.pyc
+*.html
+*.xml
