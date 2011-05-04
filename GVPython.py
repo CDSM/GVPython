@@ -99,8 +99,8 @@ class session:
 
     def get_SMS_messages(self, unread_only=False):
         """
-        IN PROGRESS
-        Get array of text messages from GV
+        TODO: REWRITE THIS FUNCTION TO GET MESSAGES FROM GMAIL,
+        GV SUCKS AT JS.
         """
         if not self.__logged_in:
             raise NameError("Not logged in, log in first.")
@@ -108,23 +108,39 @@ class session:
         # Get the XML file with all the SMS goodies in it
         self.__show_status("Getting SMS Messages page")
         page = self.__get_doc(SMS_INBOX_URL)
-        a = open("page.xml", "w")
-        a.write(page)
-        a.close()
+        xmldata = minidom.parseString(page)
         print "Done"
 
+        self.__show_status("Parsing XML for messages")
         # Begin parsing XML response
         # Parse root JSON node from XML response
-        xmldata = minidom.parseString(page)
         json_data = xmldata.getElementsByTagName("json")[0]
         json_data = json_data.childNodes[0].data
         json_data = json.loads(json_data)
         
-        # start parsing through received messages
+        # Parse out only unread messages if we need to
         messages = json_data["messages"]
+        if unread_only:
+            messages_ = {}
+            for key in messages.keys():
+                message = messages[key]
+                if "unread" in message["labels"]:
+                    messages_[key] = message
+            messages = messages_
+
         for key in messages.keys():
             message = messages[key]
             display_dict(message, "Message")
+
+        # Get HTML node
+        html_data = xmldata.getElementsByTagName("html")[0]
+        html_data = html_data.childNodes[0].data
+        a = open("data.html", "w")
+        a.write(html_data)
+        a.close()
+
+        print "Done"
+
 
     def send_sms_message(self, phone_number, message):
         """
