@@ -4,8 +4,12 @@ import GVPython
 
 if __name__ == '__main__':
     gv = GVPython.session("cdsm.tech@gmail.com", "captainmoroni")
-    if gv.login():
-        print gv.get_SMS_messages(unread_only=True)
-#        print gv.send_sms_message("9704242914", "this will probably be my last test text for the day <3 smith")
-    else:
-        print "[!] Failed to log in, oh no!"
+    sms_messages = gv.get_sms_messages(clear_messages=False)
+    print "[+] %d new SMS messages" % len(sms_messages)
+    print "[+] Behold the text messages!"
+    for message in sms_messages:
+            print "-"*50
+            print "From: %s" % message["from"]["display"]
+            print "--"
+            print message["body"]
+            print "-"*50

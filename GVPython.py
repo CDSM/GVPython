@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 #
 # -- Colorado Denver South Mission --
-# Google Voice API for Python
+#  -  Google Voice API for Python  -
 #
 import time, sys
 import socket, httplib, urllib, urllib2, form_grabber
-import json
-from xml.dom import minidom
+import imaplib
 
 ###
 # Config
@@ -14,6 +13,10 @@ from xml.dom import minidom
 ROOT_URL = "http://google.com/voice"
 SMS_INBOX_URL = "https://www.google.com/voice/inbox/recent/sms/"
 MAX_RETRIES = 5
+IMAP_SERVER = "imap.googlemail.com"
+IMAP_PORT = 587
+
+#!# End Config #!#
 
 # super cool debug function
 def display_dict(dictionary, header):
@@ -97,60 +100,14 @@ class session:
 
         return True
 
-    def get_SMS_messages(self, unread_only=False):
-        """
-        TODO: REWRITE THIS FUNCTION TO GET MESSAGES FROM GMAIL,
-        GV SUCKS AT JS.
-        """
-        if not self.__logged_in:
-            raise NameError("Not logged in, log in first.")
-
-        # Get the XML file with all the SMS goodies in it
-        self.__show_status("Getting SMS Messages page")
-        page = self.__get_doc(SMS_INBOX_URL)
-        xmldata = minidom.parseString(page)
-        print "Done"
-
-        self.__show_status("Parsing XML for messages")
-        # Begin parsing XML response
-        # Parse root JSON node from XML response
-        json_data = xmldata.getElementsByTagName("json")[0]
-        json_data = json_data.childNodes[0].data
-        json_data = json.loads(json_data)
-        
-        # Parse out only unread messages if we need to
-        messages = json_data["messages"]
-        if unread_only:
-            messages_ = {}
-            for key in messages.keys():
-                message = messages[key]
-                if "unread" in message["labels"]:
-                    messages_[key] = message
-            messages = messages_
-
-        for key in messages.keys():
-            message = messages[key]
-            display_dict(message, "Message")
-
-        # Get HTML node
-        html_data = xmldata.getElementsByTagName("html")[0]
-        html_data = html_data.childNodes[0].data
-        a = open("data.html", "w")
-        a.write(html_data)
-        a.close()
-
-        print "Done"
-
-
     def send_sms_message(self, phone_number, message):
         """
         Send an SMS message to a given phone number.
         (Limited to 160 chars)
         """
         if not self.__logged_in:
-            raise NameError("Not logged in, log in first.")
-        if len(message) > 160:
-            raise NameError("SMS mess has can be no longer than 160 characters.")
+            if not self.login():
+                raise NameError("Could not log in, check credentials and try again.")
 
         self.__show_status("Sending message to %s" % phone_number)
         action_url = "https://www.google.com/voice/sms/send/"
@@ -168,5 +125,87 @@ class session:
         else:
             print "Failed"
         return response["ok"]
+
+    def get_sms_messages(self, clear_messages=True):
+        # Login to GMail's IMAP Server
+        self.__show_status("Logging in to IMAP server")
+        imap_connection = imaplib.IMAP4_SSL(IMAP_SERVER)
+        imap_connection.login(self.__username, self.__password)
+        print "Done"
+
+        # Retrieve messages
+        self.__show_status("Retrieving raw messages from server")
+        raw_messages = []
+        imap_connection.select("INBOX")
+        status, data = imap_connection.search(None, 'ALL')
+        for message_id in data[0].split():
+            status, response = imap_connection.fetch(message_id, '(RFC822)')
+            if status == "OK":
+                # Get message body from response
+                message_body = response[0][1]
+                raw_messages.append(message_body)
+        print "Done"
+
+        # Process raw messages into message dictionary objects
+        self.__show_status("Proxessing raw messages")
+        messages = []
+        for raw_message in raw_messages:
+            # Instantiate message dictionary
+            message = {}
+
+            # Verify there's the message includes the proper MIME type for processing
+            if not "Content-Type: text/plain;" in raw_message:
+                continue
+
+            # Get the FROM header
+            for line in raw_message.split("\n"):
+                if not line.startswith("From: "):
+                    continue
+                # get the 'display' and 'real' from information
+                #   'display' = "(303) 507-3572"
+                #   'real' = "17209242376.13035073572.RhKnXCbXS5@txt.voice.google.com"
+                line = line.split("<")
+                from_display = line[0]
+                from_display = from_display.split("From: ")[1]
+                from_display = from_display.strip()
+                from_display = from_display.replace("\"", "")
+                from_real = line[1]
+                from_real = from_real.split(">")[0]
+                from_real = from_real.strip()
+                from_information = {}
+                from_information["display"] = from_display
+                from_information["real"] = from_real
+                message["from"] = from_information
+
+            # Make sure the messages is from a GV sms forwarding address
+            if not message["from"]["real"].endswith("txt.voice.google.com"):
+                continue
+
+            # Get message body
+            message_body = raw_message.split("Content-Type: text/plain;")[1]
+            message_body = message_body.split("delsp=yes")[1]
+            message_body = message_body.split("--\r\nSent using")[0]
+            message_body = message_body.strip()
+            message["body"] = message_body
+            # TODO - find and strip off signature
+            messages.append(message)
+
+        print "Done"
+
+        if clear_messages:
+        # Clear messages from inbox
+            typ, data = imap_connection.search(None, 'ALL')
+            for num in data[0].split():
+               imap_connection.store(num, '+FLAGS', '\\Deleted')
+            imap_connection.expunge()
+
+        #close server
+        imap_connection.close()
+        imap_connection.logout()
+
+        return messages
+
+
+
 
 
