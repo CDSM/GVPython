@@ -150,7 +150,7 @@ class session:
                 if not line.startswith("From: "):
                     continue
                 # get the 'display' and 'real' from information
-                #   'display' = "(303) 507-3572"
+                #   'display' = "3035073572"
                 #   'real' = "17209242376.13035073572.RhKnXCbXS5@txt.voice.google.com"
                 line = line.split("<")
                 from_display = line[0]
