@@ -11,7 +11,6 @@ import imaplib
 # Config
 ###
 ROOT_URL = "http://google.com/voice"
-SMS_INBOX_URL = "https://www.google.com/voice/inbox/recent/sms/"
 MAX_RETRIES = 5
 IMAP_SERVER = "imap.googlemail.com"
 IMAP_PORT = 587
