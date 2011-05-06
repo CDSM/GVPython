@@ -17,17 +17,6 @@ IMAP_PORT = 587
 
 #!# End Config #!#
 
-# super cool debug function
-def display_dict(dictionary, header):
-    print "-" * 50
-    print "- %s" % header
-    print "-" * 50
-    for key in dictionary.keys():
-        print "'%s' => '%s'" % (key, dictionary[key])
-        print
-    print "-" * 50
-    print
-
 class session:
     def __init__(self, username, password):
         """
@@ -168,6 +157,10 @@ class session:
                 from_display = from_display.split("From: ")[1]
                 from_display = from_display.strip()
                 from_display = from_display.replace("\"", "")
+                from_display = from_display.replace(" ", "")
+                from_display = from_display.replace("(", "")
+                from_display = from_display.replace(")", "")
+                from_display = from_display.replace("-", "")
                 from_real = line[1]
                 from_real = from_real.split(">")[0]
                 from_real = from_real.strip()
@@ -203,8 +196,3 @@ class session:
         imap_connection.logout()
 
         return messages
-
-
-
-
-
