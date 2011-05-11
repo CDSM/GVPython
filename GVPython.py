@@ -3,17 +3,17 @@
 # -- Colorado Denver South Mission --
 #  -  Google Voice API for Python  -
 #
-import time, sys
+import time, sys, math
 import socket, httplib, urllib, urllib2, form_grabber
-import imaplib
+import imaplib, json
 
 ###
 # Config
 ###
 ROOT_URL = "http://google.com/voice"
-MAX_RETRIES = 5
 IMAP_SERVER = "imap.googlemail.com"
 IMAP_PORT = 587
+MAX_RETRIES = 5
 
 #!# End Config #!#
 
@@ -63,19 +63,15 @@ class session:
         """
 
         # Grab the login page, and then parse out the FORM data
-        self.__show_status("Getting login page")
         page = self.__get_doc(ROOT_URL)
         action_url, data = form_grabber.process_form(page, ROOT_URL)
         data["Email"] = self.__username
         data["Passwd"] = self.__password
-        print "Done"
 
         # Prepare the login request and try logging in
-        self.__show_status("Attempting login")
         data = urllib.urlencode(data)
         request = urllib2.Request(action_url, data)
         response = self.__get_doc(request)
-        print "Done"
 
         # Process the server's response
         if "Sign out" not in response:
@@ -98,16 +94,35 @@ class session:
                 raise NameError("Could not log in, check credentials and try again.")
 
         self.__show_status("Sending message to %s" % phone_number)
-        action_url = "https://www.google.com/voice/sms/send/"
-        post_data = {"id": "",
-                    "phoneNumber": phone_number,
-                    "text": message,
-                    "sendErrorSms": "0",
-                    "_rnr_se": self.__rnr_se}
-        post_data = urllib.urlencode(post_data)
-        request = urllib2.Request(action_url, post_data)
-        response = self.__get_doc(request)
-        response = json.loads(response)
+        response = {}
+
+        if len(message) > 160:
+            count = 1
+            for i in range(0, len(message), 150):
+                message_ = "(%d/%d) %s" % (count, int(math.ceil(len(message)/150.0)), message[i:i+150])
+                count += 1
+                action_url = "https://www.google.com/voice/sms/send/"
+                post_data = {"id": "",
+                            "phoneNumber": phone_number,
+                            "text": message_,
+                            "sendErrorSms": "0",
+                            "_rnr_se": self.__rnr_se}
+                post_data = urllib.urlencode(post_data)
+                request = urllib2.Request(action_url, post_data)
+                response = self.__get_doc(request)
+                response = json.loads(response)
+        else:
+            action_url = "https://www.google.com/voice/sms/send/"
+            post_data = {"id": "",
+                        "phoneNumber": phone_number,
+                        "text": message,
+                        "sendErrorSms": "0",
+                        "_rnr_se": self.__rnr_se}
+            post_data = urllib.urlencode(post_data)
+            request = urllib2.Request(action_url, post_data)
+            response = self.__get_doc(request)
+            response = json.loads(response)
+
         if response["ok"]:
             print "Done"
         else:
@@ -168,6 +183,7 @@ class session:
                 from_information["display"] = from_display
                 from_information["real"] = from_real
                 message["from"] = from_information
+                break
 
             # Make sure the messages is from a GV sms forwarding address
             if not message["from"]["real"].endswith("txt.voice.google.com"):
@@ -178,6 +194,7 @@ class session:
             message_body = message_body.split("delsp=yes")[1]
             message_body = message_body.split("--\r\nSent using")[0]
             message_body = message_body.strip()
+            message_body = message_body.lower()
             message["body"] = message_body
             # TODO - find and strip off signature
             messages.append(message)
