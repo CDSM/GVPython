@@ -54,7 +54,6 @@ class session:
         Print line to console without \n
         """
         sys.stdout.write("[+] %s, " % message)
-        sys.stdout.flush()
 
     def login(self):
         """
@@ -84,16 +83,22 @@ class session:
 
         return True
 
-    def send_sms_message(self, phone_number, message):
+    def send_sms_message(self, phone_number, message, count=0):
         """
         Send an SMS message to a given phone number.
         (Limited to 160 chars)
         """
+        return
+        if count == 5:
+            print "Failed"
+            return False
+
         if not self.__logged_in:
             if not self.login():
                 raise NameError("Could not log in, check credentials and try again.")
+        if count == 0:
+            self.__show_status("Sending message to %s" % phone_number)
 
-        self.__show_status("Sending message to %s" % phone_number)
         response = {}
 
         if len(message) > 160:
@@ -126,7 +131,9 @@ class session:
         if response["ok"]:
             print "Done"
         else:
-            print "Failed"
+            count += 1
+            time.sleep(5)
+            self.send_sms_message(phone_number, message, count)
         return response["ok"]
 
     def get_sms_messages(self, clear_messages=True):
@@ -150,7 +157,7 @@ class session:
         print "Done"
 
         # Process raw messages into message dictionary objects
-        self.__show_status("Proxessing raw messages")
+        self.__show_status("Processing raw messages")
         messages = []
         for raw_message in raw_messages:
             # Instantiate message dictionary
